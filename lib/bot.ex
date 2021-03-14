@@ -68,6 +68,14 @@ defmodule EstoqueDeCasaBot.Bot do
     Pessoa.iniciar_cadastro_de_produto(pessoa_pid)
   end
 
+  defp processar_mensagem(pessoa_pid, "/cancelar") do
+    Pessoa.cancelar_operacao_atual(pessoa_pid)
+  end
+
+  defp processar_mensagem(pessoa_pid, "/listadecompras") do
+    Pessoa.gerar_lista_de_compras(pessoa_pid)
+  end
+
   defp processar_mensagem(pessoa_pid, mensagem) do
     Pessoa.get_estado_atual(pessoa_pid)
     |> case do
@@ -105,5 +113,5 @@ defmodule EstoqueDeCasaBot.Bot do
   defp get_id(%{"message" => %{"from" => %{"id" => id}}}), do: id
   defp get_nome(%{"message" => %{"from" => %{"first_name" => nome}}}), do: nome
 
-  defp get_text(%{"message" => %{"text" => text}}), do: text
+  defp get_text(%{"message" => %{"text" => text}}), do: text |> String.trim()
 end

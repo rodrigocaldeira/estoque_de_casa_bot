@@ -57,7 +57,7 @@ defmodule EstoqueDeCasaBot.Pessoa do
           produtos
           |> Enum.reduce("Seus produtos!\n\n", fn produto, mensagem ->
             mensagem <>
-              "Produto: #{produto.nome}, com #{produto.quantidade_atual}, mímino de #{
+              "#{produto.nome}, com #{produto.quantidade_atual}, mímino de #{
                 produto.quantidade_minima
               }\n"
           end)
@@ -112,9 +112,27 @@ defmodule EstoqueDeCasaBot.Pessoa do
     )
   end
 
+  def cancelar_operacao_atual(pessoa_pid) do
+    GenServer.call(pessoa_pid, :cancelar_operacao_atual)
+
+    enviar_mensagem(
+      pessoa_pid,
+      "Cancelado com sucesso! Nenhum produto sendo cadastrado ou atualizado no momento"
+    )
+  end
+
   def salvar_quantidade_minima_novo_produto(pessoa_pid, mensagem) do
     GenServer.call(pessoa_pid, {:salvar_quantidade_minima_novo_produto, mensagem})
     cadastrar_produto(pessoa_pid)
+  end
+
+  def gerar_lista_de_compras(pessoa_pid) do
+    lista_de_compras = GenServer.call(pessoa_pid, :gerar_lista_de_compras)
+
+    enviar_mensagem(
+      pessoa_pid,
+      lista_de_compras
+    )
   end
 
   @impl true
@@ -199,5 +217,44 @@ defmodule EstoqueDeCasaBot.Pessoa do
 
   def handle_call(:get_estado_atual, _from, %Pessoa{estado_atual: estado_atual} = pessoa) do
     {:reply, estado_atual, pessoa}
+  end
+
+  def handle_call(:cancelar_operacao_atual, _from, %Pessoa{} = pessoa) do
+    {:reply, :ok, %Pessoa{pessoa | estado_atual: :esperando, novo_produto: %Produto{}}}
+  end
+
+  def handle_call(:gerar_lista_de_compras, _from, %Pessoa{produtos: produtos} = pessoa) do
+    produtos
+    |> listar_produtos_com_estoque_baixo()
+    |> case do
+      [] -> 
+        {:reply, "Você não tem nenhum produto cadastrado!", pessoa}
+
+      produtos_com_estoque_baixo ->
+        mensagem = 
+        produtos_com_estoque_baixo
+        |> Enum.map(fn %Produto{
+          nome: nome,
+          quantidade_atual: quantidade_atual,
+          quantidade_minima: quantidade_minima
+        }->
+          %{nome: nome, quantidade: quantidade_minima - quantidade_atual}
+        end)
+        |> Enum.reduce("Segue sua lista de compras!\n\n", fn %{nome: nome, quantidade: quantidade}, mensagem ->
+          "#{mensagem}#{nome}, comprar #{quantidade} unidades\n"
+        end)
+
+        {:reply, mensagem, pessoa}
+    end
+  end
+
+  defp listar_produtos_com_estoque_baixo(produtos) do
+    produtos
+    |> Enum.filter(fn %Produto{
+      quantidade_atual: quantidade_atual,
+      quantidade_minima: quantidade_minima
+    } ->
+        quantidade_minima > quantidade_atual
+    end)
   end
 end
