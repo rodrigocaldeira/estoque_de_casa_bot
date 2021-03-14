@@ -227,22 +227,26 @@ defmodule EstoqueDeCasaBot.Pessoa do
     produtos
     |> listar_produtos_com_estoque_baixo()
     |> case do
-      [] -> 
+      [] ->
         {:reply, "Você não tem nenhum produto cadastrado!", pessoa}
 
       produtos_com_estoque_baixo ->
-        mensagem = 
-        produtos_com_estoque_baixo
-        |> Enum.map(fn %Produto{
-          nome: nome,
-          quantidade_atual: quantidade_atual,
-          quantidade_minima: quantidade_minima
-        }->
-          %{nome: nome, quantidade: quantidade_minima - quantidade_atual}
-        end)
-        |> Enum.reduce("Segue sua lista de compras!\n\n", fn %{nome: nome, quantidade: quantidade}, mensagem ->
-          "#{mensagem}#{nome}, comprar #{quantidade} unidades\n"
-        end)
+        mensagem =
+          produtos_com_estoque_baixo
+          |> Enum.map(fn %Produto{
+                           nome: nome,
+                           quantidade_atual: quantidade_atual,
+                           quantidade_minima: quantidade_minima
+                         } ->
+            %{nome: nome, quantidade: quantidade_minima - quantidade_atual}
+          end)
+          |> Enum.reduce("Segue sua lista de compras!\n\n", fn %{
+                                                                 nome: nome,
+                                                                 quantidade: quantidade
+                                                               },
+                                                               mensagem ->
+            "#{mensagem}#{nome}, comprar #{quantidade} unidades\n"
+          end)
 
         {:reply, mensagem, pessoa}
     end
@@ -251,10 +255,10 @@ defmodule EstoqueDeCasaBot.Pessoa do
   defp listar_produtos_com_estoque_baixo(produtos) do
     produtos
     |> Enum.filter(fn %Produto{
-      quantidade_atual: quantidade_atual,
-      quantidade_minima: quantidade_minima
-    } ->
-        quantidade_minima > quantidade_atual
+                        quantidade_atual: quantidade_atual,
+                        quantidade_minima: quantidade_minima
+                      } ->
+      quantidade_minima > quantidade_atual
     end)
   end
 end
