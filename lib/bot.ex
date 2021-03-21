@@ -80,6 +80,10 @@ defmodule EstoqueDeCasaBot.Bot do
     Pessoa.iniciar_alteracao_de_produto(pessoa_pid)
   end
 
+  defp processar_mensagem(pessoa_pid, "/excluir") do
+    Pessoa.iniciar_exclusao_de_produto(pessoa_pid)
+  end
+
   defp processar_mensagem(pessoa_pid, mensagem) do
     Pessoa.get_estado_atual(pessoa_pid)
     |> case do
@@ -103,6 +107,12 @@ defmodule EstoqueDeCasaBot.Bot do
 
       :alterando_quantidade_minima ->
         Pessoa.alterar_quantidade_minima(pessoa_pid, mensagem)
+
+      :selecionando_produto_para_excluir ->
+        Pessoa.selecionar_produto_para_excluir(pessoa_pid, mensagem)
+
+      :confirmando_exclusao_de_produto ->
+        Pessoa.confirmar_exclusao_de_produto(pessoa_pid, mensagem)
 
       _ ->
         Pessoa.enviar_mensagem(

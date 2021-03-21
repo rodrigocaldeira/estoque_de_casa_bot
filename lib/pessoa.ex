@@ -263,6 +263,73 @@ defmodule EstoqueDeCasaBot.Pessoa do
     end
   end
 
+  def iniciar_exclusao_de_produto(pessoa_pid) do
+    GenServer.call(pessoa_pid, :listar_produtos)
+    |> case do
+      [] ->
+        enviar_mensagem(pessoa_pid, "Você não tem nenhum produto ainda.")
+
+      produtos ->
+        mensagem =
+          produtos
+          |> Enum.reduce(
+            "Qual produto você deseja excluir? (digite o nome produto)\n\n",
+            fn produto, mensagem ->
+              mensagem <>
+                "#{produto.nome}, com #{produto.quantidade_atual}, mímino de #{
+                  produto.quantidade_minima
+                }\n"
+            end
+          )
+
+        GenServer.call(pessoa_pid, :iniciar_exclusao_de_produto)
+
+        enviar_mensagem(pessoa_pid, mensagem)
+    end
+  end
+
+  def selecionar_produto_para_excluir(pessoa_pid, mensagem) do
+    GenServer.call(pessoa_pid, {:selecionar_produto_para_excluir, mensagem})
+    |> case do
+      :ok ->
+        enviar_mensagem(
+          pessoa_pid,
+          "Você quer mesmo excluir o produto #{mensagem}?"
+        )
+
+      :produto_inexistente ->
+        enviar_mensagem(
+          pessoa_pid,
+          "Desculpe, mas você não tem #{mensagem} na sua lista de produtos\n\nVamos de novo\n\n"
+        )
+
+        iniciar_exclusao_de_produto(pessoa_pid)
+    end
+  end
+
+  def confirmar_exclusao_de_produto(pessoa_pid, mensagem) do
+    mensagem
+    |> String.trim()
+    |> String.downcase()
+    |> case do
+      sim when sim in ["s", "sim"] ->
+        GenServer.call(pessoa_pid, :excluir_produto)
+
+        enviar_mensagem(
+          pessoa_pid,
+          "Produto excluido com sucesso!"
+        )
+
+      _ ->
+        GenServer.call(pessoa_pid, :cancelar_operacao_atual)
+
+        enviar_mensagem(
+          pessoa_pid,
+          "Exclusão cancelada!"
+        )
+    end
+  end
+
   @impl true
   def handle_cast({:enviar_mensagem, message}, %Pessoa{chat_id: chat_id} = pessoa) do
     TelegramClient.send_response(chat_id, message)
@@ -377,7 +444,7 @@ defmodule EstoqueDeCasaBot.Pessoa do
     |> listar_produtos_com_estoque_baixo()
     |> case do
       [] ->
-        {:reply, "Você não tem nenhum produto cadastrado!", pessoa}
+        {:reply, "Você não tem nenhum produto que precise ser comprado agora!", pessoa}
 
       produtos_com_estoque_baixo ->
         mensagem =
@@ -490,6 +557,54 @@ defmodule EstoqueDeCasaBot.Pessoa do
       ArgumentError ->
         {:reply, :argument_error, pessoa}
     end
+  end
+
+  def handle_call(:iniciar_exclusao_de_produto, _from, %Pessoa{} = pessoa) do
+    {:reply, :ok, %{pessoa | estado_atual: :selecionando_produto_para_excluir}}
+  end
+
+  def handle_call(
+        {:selecionar_produto_para_excluir, mensagem},
+        _from,
+        %Pessoa{produtos: produtos} = pessoa
+      ) do
+    nome_produto = mensagem |> String.trim()
+
+    produtos
+    |> Enum.find(fn produto -> produto.nome == nome_produto end)
+    |> case do
+      nil ->
+        {:reply, :produto_inexistente, pessoa}
+
+      produto ->
+        {:reply, :ok,
+         %{pessoa | novo_produto: produto, estado_atual: :confirmando_exclusao_de_produto}}
+    end
+  end
+
+  def handle_call(
+        :excluir_produto,
+        _from,
+        %Pessoa{
+          novo_produto: %Produto{nome: nome},
+          produtos: produtos
+        } = pessoa
+      ) do
+    produto_excluido =
+      produtos
+      |> Enum.find(fn produto -> produto.nome == nome end)
+
+    nova_lista_de_produtos =
+      produtos
+      |> List.delete(produto_excluido)
+
+    {:reply, :ok,
+     %Pessoa{
+       pessoa
+       | novo_produto: %Produto{},
+         produtos: nova_lista_de_produtos,
+         estado_atual: :esperando
+     }}
   end
 
   defp listar_produtos_com_estoque_baixo(produtos) do
