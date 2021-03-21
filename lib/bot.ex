@@ -76,6 +76,10 @@ defmodule EstoqueDeCasaBot.Bot do
     Pessoa.gerar_lista_de_compras(pessoa_pid)
   end
 
+  defp processar_mensagem(pessoa_pid, "/alterar") do
+    Pessoa.iniciar_alteracao_de_produto(pessoa_pid)
+  end
+
   defp processar_mensagem(pessoa_pid, mensagem) do
     Pessoa.get_estado_atual(pessoa_pid)
     |> case do
@@ -87,6 +91,18 @@ defmodule EstoqueDeCasaBot.Bot do
 
       :cadastrando_quantidade_minima ->
         Pessoa.salvar_quantidade_minima_novo_produto(pessoa_pid, mensagem)
+
+      :selecionando_produto_para_alterar ->
+        Pessoa.selecionar_produto_para_alterar(pessoa_pid, mensagem)
+
+      :selecionando_opcao_de_alteracao ->
+        Pessoa.selecionar_opcao_de_alteracao(pessoa_pid, mensagem)
+
+      :alterando_quantidade_atual ->
+        Pessoa.alterar_quantidade_atual(pessoa_pid, mensagem)
+
+      :alterando_quantidade_minima ->
+        Pessoa.alterar_quantidade_minima(pessoa_pid, mensagem)
 
       _ ->
         Pessoa.enviar_mensagem(

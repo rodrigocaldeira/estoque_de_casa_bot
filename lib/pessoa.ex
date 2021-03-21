@@ -102,7 +102,7 @@ defmodule EstoqueDeCasaBot.Pessoa do
           pessoa_pid,
           "Boa! Agora, quantas unidades você tem atualmente desse produto?"
         )
-        
+
       :produto_ja_cadastrado ->
         enviar_mensagem(
           pessoa_pid,
@@ -115,7 +115,6 @@ defmodule EstoqueDeCasaBot.Pessoa do
     GenServer.call(pessoa_pid, {:salvar_quantidade_atual_novo_produto, mensagem})
     |> case do
       :ok ->
-
         enviar_mensagem(
           pessoa_pid,
           "Quase lá! Qual é a quantidade mímina que você precisa ter desse produto?"
@@ -143,6 +142,7 @@ defmodule EstoqueDeCasaBot.Pessoa do
     |> case do
       :ok ->
         cadastrar_produto(pessoa_pid)
+
       :argument_error ->
         enviar_mensagem(
           pessoa_pid,
@@ -158,6 +158,109 @@ defmodule EstoqueDeCasaBot.Pessoa do
       pessoa_pid,
       lista_de_compras
     )
+  end
+
+  def iniciar_alteracao_de_produto(pessoa_pid) do
+    GenServer.call(pessoa_pid, :listar_produtos)
+    |> case do
+      [] ->
+        enviar_mensagem(pessoa_pid, "Você não tem nenhum produto ainda.")
+
+      produtos ->
+        mensagem =
+          produtos
+          |> Enum.reduce(
+            "Qual produto você deseja alterar? (digite o nome produto)\n\n",
+            fn produto, mensagem ->
+              mensagem <>
+                "#{produto.nome}, com #{produto.quantidade_atual}, mímino de #{
+                  produto.quantidade_minima
+                }\n"
+            end
+          )
+
+        GenServer.call(pessoa_pid, :iniciar_alteracao_de_produto)
+
+        enviar_mensagem(pessoa_pid, mensagem)
+    end
+  end
+
+  def selecionar_produto_para_alterar(pessoa_pid, mensagem) do
+    GenServer.call(pessoa_pid, {:selecionar_produto_para_alterar, mensagem})
+    |> case do
+      :ok ->
+        enviar_mensagem(
+          pessoa_pid,
+          "OK! O que você deseja alterar no produto #{mensagem} (informe a opção)?\n\n1 - Quantidade atual\n2 - Quantidade mímima"
+        )
+
+      :produto_inexistente ->
+        enviar_mensagem(
+          pessoa_pid,
+          "Desculpe, mas você não tem #{mensagem} na sua lista de produtos\n\nVamos de novo\n\n"
+        )
+
+        iniciar_alteracao_de_produto(pessoa_pid)
+    end
+  end
+
+  def selecionar_opcao_de_alteracao(pessoa_pid, "1") do
+    {:ok, %Produto{nome: nome}} = GenServer.call(pessoa_pid, :alterando_quantidade_atual)
+
+    enviar_mensagem(
+      pessoa_pid,
+      "Entendi! E qual é a quantidade atual do produto #{nome}"
+    )
+  end
+
+  def selecionar_opcao_de_alteracao(pessoa_pid, "2") do
+    {:ok, %Produto{nome: nome}} = GenServer.call(pessoa_pid, :alterando_quantidade_minima)
+
+    enviar_mensagem(
+      pessoa_pid,
+      "Certo! E qual é a nova quantidade mínima do produto #{nome}"
+    )
+  end
+
+  def selecionar_opcao_de_alteracao(pessoa_pid, _mensagem) do
+    enviar_mensagem(
+      pessoa_pid,
+      "Opção inválida! Vamos novamente?\n\n1 - Quantidade atual\n2 - Quantidade mímina"
+    )
+  end
+
+  def alterar_quantidade_atual(pessoa_pid, mensagem) do
+    GenServer.call(pessoa_pid, {:alterar_quantidade_atual, mensagem})
+    |> case do
+      :ok ->
+        enviar_mensagem(
+          pessoa_pid,
+          "Quantidade atual alterada com sucesso!"
+        )
+
+      :argument_error ->
+        enviar_mensagem(
+          pessoa_pid,
+          "Descupe, mas #{mensagem} é uma quantidade inválida! Vamos tentar novamente?\nQual é a quantidade atual deste produto?"
+        )
+    end
+  end
+
+  def alterar_quantidade_minima(pessoa_pid, mensagem) do
+    GenServer.call(pessoa_pid, {:alterar_quantidade_minima, mensagem})
+    |> case do
+      :ok ->
+        enviar_mensagem(
+          pessoa_pid,
+          "Quantidade mínima alterada com sucesso!"
+        )
+
+      :argument_error ->
+        enviar_mensagem(
+          pessoa_pid,
+          "Descupe, mas #{mensagem} é uma quantidade inválida! Vamos tentar novamente?\nQual é a nova quantidade mínima deste produto?"
+        )
+    end
   end
 
   @impl true
@@ -190,7 +293,7 @@ defmodule EstoqueDeCasaBot.Pessoa do
           novo_produto: %Produto{} = produto,
           produtos: produtos
         } = pessoa
-  ) do
+      ) do
     nome_novo_produto = nome |> String.trim()
 
     produtos
@@ -198,11 +301,12 @@ defmodule EstoqueDeCasaBot.Pessoa do
     |> case do
       nil ->
         {:reply, :ok,
-          %Pessoa{
-            pessoa
-            | estado_atual: :cadastrando_quantidade_atual,
-            novo_produto: %Produto{produto | nome: nome_novo_produto}
-          }}
+         %Pessoa{
+           pessoa
+           | estado_atual: :cadastrando_quantidade_atual,
+             novo_produto: %Produto{produto | nome: nome_novo_produto}
+         }}
+
       _ ->
         {:reply, :produto_ja_cadastrado, pessoa}
     end
@@ -217,19 +321,18 @@ defmodule EstoqueDeCasaBot.Pessoa do
         %Pessoa{
           novo_produto: %Produto{} = produto
         } = pessoa
-  ) do
-
+      ) do
     try do
       {:reply, :ok,
-        %Pessoa{
-          pessoa
-          | estado_atual: :cadastrando_quantidade_minima,
-          novo_produto: %Produto{
-            produto
-            | quantidade_atual: quantidade_atual |> String.to_integer()
-          }
-        }}
-    rescue 
+       %Pessoa{
+         pessoa
+         | estado_atual: :cadastrando_quantidade_minima,
+           novo_produto: %Produto{
+             produto
+             | quantidade_atual: quantidade_atual |> String.to_integer()
+           }
+       }}
+    rescue
       ArgumentError ->
         {:reply, :argument_error, pessoa}
     end
@@ -244,18 +347,17 @@ defmodule EstoqueDeCasaBot.Pessoa do
         %Pessoa{
           novo_produto: %Produto{} = produto
         } = pessoa
-  ) do
+      ) do
     try do
-
-    {:reply, :ok,
-     %Pessoa{
-       pessoa
-       | estado_atual: :esperando,
-         novo_produto: %Produto{
-           produto
-           | quantidade_minima: quantidade_minima |> String.to_integer()
-         }
-     }}
+      {:reply, :ok,
+       %Pessoa{
+         pessoa
+         | estado_atual: :esperando,
+           novo_produto: %Produto{
+             produto
+             | quantidade_minima: quantidade_minima |> String.to_integer()
+           }
+       }}
     rescue
       ArgumentError ->
         {:reply, :argument_error, pessoa}
@@ -296,6 +398,97 @@ defmodule EstoqueDeCasaBot.Pessoa do
           end)
 
         {:reply, mensagem, pessoa}
+    end
+  end
+
+  def handle_call(:iniciar_alteracao_de_produto, _from, %Pessoa{} = pessoa) do
+    {:reply, :ok, %{pessoa | estado_atual: :selecionando_produto_para_alterar}}
+  end
+
+  def handle_call(
+        {:selecionar_produto_para_alterar, mensagem},
+        _from,
+        %Pessoa{produtos: produtos} = pessoa
+      ) do
+    nome_produto = mensagem |> String.trim()
+
+    produtos
+    |> Enum.find(fn produto -> produto.nome == nome_produto end)
+    |> case do
+      nil ->
+        {:reply, :produto_inexistente, pessoa}
+
+      produto ->
+        {:reply, :ok,
+         %{pessoa | novo_produto: produto, estado_atual: :selecionando_opcao_de_alteracao}}
+    end
+  end
+
+  def handle_call(:alterando_quantidade_atual, _from, %Pessoa{novo_produto: produto} = pessoa) do
+    {:reply, {:ok, produto}, %{pessoa | estado_atual: :alterando_quantidade_atual}}
+  end
+
+  def handle_call(:alterando_quantidade_minima, _from, %Pessoa{novo_produto: produto} = pessoa) do
+    {:reply, {:ok, produto}, %{pessoa | estado_atual: :alterando_quantidade_minima}}
+  end
+
+  def handle_call(
+        {:alterar_quantidade_atual, mensagem},
+        _from,
+        %Pessoa{
+          novo_produto: %Produto{nome: nome},
+          produtos: produtos
+        } = pessoa
+      ) do
+    try do
+      index_produto = produtos |> Enum.find_index(fn produto -> produto.nome == nome end)
+
+      nova_lista_de_produtos =
+        produtos
+        |> List.update_at(index_produto, fn produto ->
+          %{produto | quantidade_atual: mensagem |> String.to_integer()}
+        end)
+
+      {:reply, :ok,
+       %Pessoa{
+         pessoa
+         | estado_atual: :esperando,
+           novo_produto: %Produto{},
+           produtos: nova_lista_de_produtos
+       }}
+    rescue
+      ArgumentError ->
+        {:reply, :argument_error, pessoa}
+    end
+  end
+
+  def handle_call(
+        {:alterar_quantidade_minima, mensagem},
+        _from,
+        %Pessoa{
+          novo_produto: %Produto{nome: nome},
+          produtos: produtos
+        } = pessoa
+      ) do
+    try do
+      index_produto = produtos |> Enum.find_index(fn produto -> produto.nome == nome end)
+
+      nova_lista_de_produtos =
+        produtos
+        |> List.update_at(index_produto, fn produto ->
+          %{produto | quantidade_minima: mensagem |> String.to_integer()}
+        end)
+
+      {:reply, :ok,
+       %Pessoa{
+         pessoa
+         | estado_atual: :esperando,
+           novo_produto: %Produto{},
+           produtos: nova_lista_de_produtos
+       }}
+    rescue
+      ArgumentError ->
+        {:reply, :argument_error, pessoa}
     end
   end
 
