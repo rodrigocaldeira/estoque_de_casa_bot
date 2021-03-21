@@ -96,20 +96,37 @@ defmodule EstoqueDeCasaBot.Pessoa do
 
   def salvar_nome_novo_produto(pessoa_pid, mensagem) do
     GenServer.call(pessoa_pid, {:salvar_nome_novo_produto, mensagem})
-
-    enviar_mensagem(
-      pessoa_pid,
-      "Boa! Agora, quantas unidades você tem atualmente desse produto?"
-    )
+    |> case do
+      :ok ->
+        enviar_mensagem(
+          pessoa_pid,
+          "Boa! Agora, quantas unidades você tem atualmente desse produto?"
+        )
+        
+      :produto_ja_cadastrado ->
+        enviar_mensagem(
+          pessoa_pid,
+          "Desculpe, mas você já tem #{mensagem} cadastrado!\nPor favor, informe outro produto (ou digite /cancelar para cancelar o cadastro)"
+        )
+    end
   end
 
   def salvar_quantidade_atual_novo_produto(pessoa_pid, mensagem) do
     GenServer.call(pessoa_pid, {:salvar_quantidade_atual_novo_produto, mensagem})
+    |> case do
+      :ok ->
 
-    enviar_mensagem(
-      pessoa_pid,
-      "Quase lá! Qual é a quantidade mímina que você precisa ter desse produto?"
-    )
+        enviar_mensagem(
+          pessoa_pid,
+          "Quase lá! Qual é a quantidade mímina que você precisa ter desse produto?"
+        )
+
+      :argument_error ->
+        enviar_mensagem(
+          pessoa_pid,
+          "Descupe, mas #{mensagem} é uma quantidade inválida! Vamos tentar novamente?\nQuantas unidades você tem atualmente desse produto?"
+        )
+    end
   end
 
   def cancelar_operacao_atual(pessoa_pid) do
@@ -123,7 +140,15 @@ defmodule EstoqueDeCasaBot.Pessoa do
 
   def salvar_quantidade_minima_novo_produto(pessoa_pid, mensagem) do
     GenServer.call(pessoa_pid, {:salvar_quantidade_minima_novo_produto, mensagem})
-    cadastrar_produto(pessoa_pid)
+    |> case do
+      :ok ->
+        cadastrar_produto(pessoa_pid)
+      :argument_error ->
+        enviar_mensagem(
+          pessoa_pid,
+          "Descupe, mas #{mensagem} é uma quantidade inválida! Vamos tentar novamente?\nQual é a quantidade mínima que você precisa ter desse produto?"
+        )
+    end
   end
 
   def gerar_lista_de_compras(pessoa_pid) do
@@ -162,15 +187,25 @@ defmodule EstoqueDeCasaBot.Pessoa do
         },
         _from,
         %Pessoa{
-          novo_produto: %Produto{} = produto
+          novo_produto: %Produto{} = produto,
+          produtos: produtos
         } = pessoa
-      ) do
-    {:reply, :ok,
-     %Pessoa{
-       pessoa
-       | estado_atual: :cadastrando_quantidade_atual,
-         novo_produto: %Produto{produto | nome: nome}
-     }}
+  ) do
+    nome_novo_produto = nome |> String.trim()
+
+    produtos
+    |> Enum.find(fn p -> p.nome == nome_novo_produto end)
+    |> case do
+      nil ->
+        {:reply, :ok,
+          %Pessoa{
+            pessoa
+            | estado_atual: :cadastrando_quantidade_atual,
+            novo_produto: %Produto{produto | nome: nome_novo_produto}
+          }}
+      _ ->
+        {:reply, :produto_ja_cadastrado, pessoa}
+    end
   end
 
   def handle_call(
@@ -182,16 +217,22 @@ defmodule EstoqueDeCasaBot.Pessoa do
         %Pessoa{
           novo_produto: %Produto{} = produto
         } = pessoa
-      ) do
-    {:reply, :ok,
-     %Pessoa{
-       pessoa
-       | estado_atual: :cadastrando_quantidade_minima,
-         novo_produto: %Produto{
-           produto
-           | quantidade_atual: quantidade_atual |> String.to_integer()
-         }
-     }}
+  ) do
+
+    try do
+      {:reply, :ok,
+        %Pessoa{
+          pessoa
+          | estado_atual: :cadastrando_quantidade_minima,
+          novo_produto: %Produto{
+            produto
+            | quantidade_atual: quantidade_atual |> String.to_integer()
+          }
+        }}
+    rescue 
+      ArgumentError ->
+        {:reply, :argument_error, pessoa}
+    end
   end
 
   def handle_call(
@@ -203,7 +244,9 @@ defmodule EstoqueDeCasaBot.Pessoa do
         %Pessoa{
           novo_produto: %Produto{} = produto
         } = pessoa
-      ) do
+  ) do
+    try do
+
     {:reply, :ok,
      %Pessoa{
        pessoa
@@ -213,6 +256,10 @@ defmodule EstoqueDeCasaBot.Pessoa do
            | quantidade_minima: quantidade_minima |> String.to_integer()
          }
      }}
+    rescue
+      ArgumentError ->
+        {:reply, :argument_error, pessoa}
+    end
   end
 
   def handle_call(:get_estado_atual, _from, %Pessoa{estado_atual: estado_atual} = pessoa) do
