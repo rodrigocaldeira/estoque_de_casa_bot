@@ -46,6 +46,12 @@ defmodule EstoqueDeCasaBot.Pessoa do
     pessoa_pid
   end
 
+  def dar_boas_vindas(pessoa_pid) do
+    {:ok, mensagem} = GenServer.call(pessoa_pid, :dar_boas_vindas)
+
+    enviar_mensagem(pessoa_pid, mensagem)
+  end
+
   def listar_produtos(pessoa_pid) do
     GenServer.call(pessoa_pid, :listar_produtos)
     |> case do
@@ -337,6 +343,26 @@ defmodule EstoqueDeCasaBot.Pessoa do
   end
 
   @impl true
+  def handle_call(:dar_boas_vindas, _from, %Pessoa{nome: nome} = pessoa) do
+    mensagem = """
+    Olá #{nome}! Sou o seu bot de estoque!
+    Estou aqui para te ajudar a controlar o estoque da sua casa!
+
+    Para isso, eu tenho uma lista de comandos que você pode usar:
+
+    /cadastrar - Cadastra um novo produto
+    /produtos - Lista os seus produtos já cadastrados
+    /alterar - Altera algum produto cadastrado
+    /excluir - Exclui um produto
+    /listadecompras - Monta uma nova lista de compras
+    /cancelar - Cancela qualquer comando que estiver sendo executado
+    /ajuda - Esta mensagem aqui!
+
+    """
+
+    {:reply, {:ok, mensagem}, pessoa}
+  end
+
   def handle_call(:listar_produtos, _from, %Pessoa{produtos: produtos} = pessoa) do
     {:reply, produtos, pessoa}
   end

@@ -28,21 +28,18 @@ defmodule EstoqueDeCasaBot.Bot do
       IO.inspect(message)
       IO.inspect(text)
 
-      pid =
-        Pessoa.get_by(%{id: id})
-        |> case do
-          nil ->
-            chat_id = get_chat_id(message)
-            nome = get_nome(message)
-            pessoa_pid = Pessoa.new(%{id: id, chat_id: chat_id, nome: nome})
-            Pessoa.enviar_mensagem(pessoa_pid, "Olá #{nome}")
-            pessoa_pid
+      Pessoa.get_by(%{id: id})
+      |> case do
+        nil ->
+          chat_id = get_chat_id(message)
+          nome = get_nome(message)
+          pessoa_pid = Pessoa.new(%{id: id, chat_id: chat_id, nome: nome})
+          Pessoa.dar_boas_vindas(pessoa_pid)
+          pessoa_pid
 
-          pessoa_pid ->
-            pessoa_pid
-        end
-
-      spawn(fn -> processar_mensagem(pid, text) end)
+        pessoa_pid ->
+          spawn(fn -> processar_mensagem(pessoa_pid, text) end)
+      end
     end)
 
     new_state =
@@ -82,6 +79,10 @@ defmodule EstoqueDeCasaBot.Bot do
 
   defp processar_mensagem(pessoa_pid, "/excluir") do
     Pessoa.iniciar_exclusao_de_produto(pessoa_pid)
+  end
+
+  defp processar_mensagem(pessoa_pid, "/ajuda") do
+    Pessoa.dar_boas_vindas(pessoa_pid)
   end
 
   defp processar_mensagem(pessoa_pid, mensagem) do
