@@ -137,8 +137,14 @@ defmodule EstoqueDeCasaBot.Bot do
   defp get_update_id(_), do: :error
 
   defp get_chat_id(%{"message" => %{"chat" => %{"id" => chat_id}}}), do: chat_id
+  defp get_chat_id(%{"edited_message" => %{"chat" => %{"id" => chat_id}}}), do: chat_id
+
   defp get_id(%{"message" => %{"from" => %{"id" => id}}}), do: id
+  defp get_id(%{"edited_message" => %{"from" => %{"id" => id}}}), do: id
+
   defp get_nome(%{"message" => %{"from" => %{"first_name" => nome}}}), do: nome
+  defp get_nome(%{"edited_message" => %{"from" => %{"first_name" => nome}}}), do: nome
 
   defp get_text(%{"message" => %{"text" => text}}), do: text |> String.trim()
+  defp get_text(%{"edited_message" => %{"text" => text}}), do: text |> String.trim()
 end
